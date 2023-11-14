@@ -226,7 +226,17 @@ class TTSModel(nn.Module):
 
         # Random latent generators (RLGs) are loaded lazily.
         self.rlg_auto = RandomLatentConverter(1024).eval()
-        self.cvvp = None
+        self.cvvp = CVVP(
+            model_dim=512,
+            transformer_heads=8,
+            dropout=0,
+            mel_codes=8192,
+            conditioning_enc_depth=8,
+            cond_mask_percentage=0,
+            speech_enc_depth=8,
+            speech_mask_percentage=0,
+            latent_multiplier=1,
+        ).eval()
         self.rlg_diffusion = RandomLatentConverter(2048).eval()
 
     def from_pretrained(self, checkpoint_path):
@@ -247,6 +257,8 @@ class TTSModel(nn.Module):
         self.rlg_auto.to(self.device)
         self.rlg_diffusion.load_state_dict(ckpt["rlg_diffuser"])
         self.rlg_diffusion.to(self.device)
+        self.cvvp.load_state_dict(ckpt["cvvp"])
+        self.cvvp.to(self.device)
 
     def get_conditioning_latents(self, voice_samples, return_mels=False):
         """
@@ -457,12 +469,8 @@ class TTSModel(nn.Module):
 
             clip_results = []
 
-            if cvvp_amount > 0:
-                if self.cvvp is None:
-                    self.load_cvvp()
-                self.cvvp = self.cvvp.to(self.device)
             if verbose:
-                if self.cvvp is None:
+                if cvvp_amount <= 0:
                     print("Computing best candidates using CLVP")
                 else:
                     print(
@@ -495,8 +503,6 @@ class TTSModel(nn.Module):
             clip_results = torch.cat(clip_results, dim=0)
             samples = torch.cat(samples, dim=0)
             best_results = samples[torch.topk(clip_results, k=k).indices]
-            if self.cvvp is not None:
-                self.cvvp = self.cvvp.cpu()
             del samples
 
             # The diffusion model actually wants the last hidden layer from the autoregressive model as conditioning
