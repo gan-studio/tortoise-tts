@@ -23,8 +23,6 @@ from tortoise.utils.diffusion import (SpacedDiffusion, get_named_beta_schedule,
 from tortoise.utils.tokenizer import VoiceBpeTokenizer
 from tortoise.utils.wav2vec_alignment import Wav2VecAlignment
 
-pbar = None
-
 
 def load_discrete_vocoder_diffuser(
     trained_diffusion_steps=4000,
