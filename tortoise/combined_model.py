@@ -163,11 +163,7 @@ class TTSModel(nn.Module):
                                  Default is true.
         :param device: Device to use when running the model. If omitted, the device will be automatically chosen.
         """
-        self.autoregressive_batch_size = (
-            pick_best_batch_size_for_gpu()
-            if autoregressive_batch_size is None
-            else autoregressive_batch_size
-        )
+        self.autoregressive_batch_size = autoregressive_batch_size
         self.enable_redaction = enable_redaction
         self.device = device
         self.use_deepspeed = use_deepspeed

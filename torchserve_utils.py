@@ -67,7 +67,7 @@ def create_combined_model(
     autoregressive_ckpt = torch.load(autoregressive_ckpt_path)
     clvp2_ckpt = torch.load(clvp2_ckpt_path)
     diffusion_decoder_ckpt = torch.load(diffusion_decoder_ckpt_path)
-    vocoder_ckpt = torch.load(vocoder_ckpt_path)
+    vocoder_ckpt = torch.load(vocoder_ckpt_path, map_location="cpu")
     rlg_auto_ckpt = torch.load(rlg_auto_ckpt_path)
     rlg_diffuser_ckpt = torch.load(rlg_diffuser_ckpt_path)
     cvvp_ckpt = torch.load(cvvp_ckpt_path)
@@ -116,18 +116,26 @@ def create_torchserve_archive(model_name: str, model_ckpt_path: str, extra_files
 
 def create_torchserve_model(
     sagemaker_bucket: str,
-    train_config_path: str,
-    preprocess_config_path: str,
-    model_config_path: str,
-    local_synth_path: str,
-    local_vocoder_path: str,
+    autoregressive_ckpt_path: str,
+    clvp2_ckpt_path: str,
+    diffusion_decoder_ckpt_path: str,
+    vocoder_ckpt_path: str,
+    rlg_auto_ckpt_path: str,
+    rlg_diffuser_ckpt_path: str,
+    cvvp_ckpt_path: str,
     output_dir: str,
     training_job_id: str,
-    use_tones: bool = False,
 ):
     zip_path = create_zip(output_dir)
     model_ckpt_path = create_combined_model(
-        local_synth_path, local_vocoder_path, output_dir
+        autoregressive_ckpt_path,
+        clvp2_ckpt_path,
+        diffusion_decoder_ckpt_path,
+        vocoder_ckpt_path,
+        rlg_auto_ckpt_path,
+        rlg_diffuser_ckpt_path,
+        cvvp_ckpt_path,
+        output_dir,
     )
     extra_files = f"{zip_path}"
 
@@ -135,5 +143,7 @@ def create_torchserve_model(
         training_job_id, model_ckpt_path, extra_files
     )
     upload_to_aws(
-        sagemaker_bucket, model_path, f"torchserve/tortoise_models/{model_path}"
+        sagemaker_bucket,
+        model_path,
+        f"torchserve-tortoise/tortoise-models/{model_path}",
     )
