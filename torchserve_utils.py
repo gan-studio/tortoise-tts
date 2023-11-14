@@ -77,7 +77,7 @@ def create_combined_model(
             "autoregressive": autoregressive_ckpt,
             "clvp2": clvp2_ckpt,
             "diffusion_decoder": diffusion_decoder_ckpt,
-            "generator": vocoder_ckpt,
+            "generator": vocoder_ckpt["model_g"],
             "rlg_auto": rlg_auto_ckpt,
             "rlg_diffuser": rlg_diffuser_ckpt,
             "cvvp": cvvp_ckpt,
