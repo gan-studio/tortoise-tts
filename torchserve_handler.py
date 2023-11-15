@@ -8,16 +8,14 @@ import os
 import shutil
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import boto3
-import numpy as np
 import torch
 import torchaudio
-import tqdm
-import yaml
 from ts.torch_handler.base_handler import BaseHandler
 
-s3_resource = boto3.resource(
+s3_client = boto3.client(
     service_name="s3",
     region_name=os.getenv("AWS_DEFAULT_REGION"),
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -25,24 +23,40 @@ s3_resource = boto3.resource(
 )
 
 
-def download_folder(bucket_name: str, s3_folder_name: str, temp_folder_path: str):
-    bucket = s3_resource.Bucket(bucket_name)
-    os.makedirs(temp_folder_path, exist_ok=True)
-    count = 0
-    for obj in bucket.objects.filter(Prefix=s3_folder_name):
-        target = os.path.join(
-            temp_folder_path, os.path.relpath(obj.key, s3_folder_name)
-        )
-        if not os.path.exists(os.path.dirname(target)):
-            os.makedirs(os.path.dirname(target))
-        if obj.key[-1] == "/":
-            continue
-        if ".wav" in obj.key:
-            bucket.download_file(obj.key, target)
-            count += 1
-    if count < 1:
-        print(f"No sample audio found for {s3_folder_name}")
-        raise Exception(f"No sample audio found {s3_folder_name}")
+def is_folder_empty(folder_path: str):
+    if not os.path.exists(folder_path):
+        return True
+
+    return not any(os.listdir(folder_path))
+
+
+def download_file(bucket_name: str, key: str, download_path: str):
+    try:
+        filename = key.split("/")[-1]
+        if ".wav" in filename:
+            s3_client.download_file(
+                bucket_name, key, os.path.join(download_path, filename)
+            )
+    except Exception as error:
+        print(f"Error downloading {key}: {error}")
+
+
+def download_all_files_parallel(bucket_name: str, folder_key: str, download_path: str):
+    os.makedirs(download_path, exist_ok=True)
+    objects = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=folder_key)
+    keys = [obj["Key"] for obj in objects.get("Contents", [])]
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [
+            executor.submit(download_file, bucket_name, key, download_path)
+            for key in keys
+        ]
+        for future in futures:
+            future.result()
+
+    if is_folder_empty(download_path):
+        print(f"No sample audio found for {folder_key}")
+        raise Exception(f"No sample audio found {folder_key}")
 
 
 class ModelHandler(BaseHandler):
@@ -110,7 +124,7 @@ class ModelHandler(BaseHandler):
             preprocessed_data.get("preset", "fast"),
         )
         local_voice_path = os.path.join(self.temp_tortoise_path, "voices", voice)
-        download_folder(bucket_name, voice_path_s3, local_voice_path)
+        download_all_files_parallel(bucket_name, voice_path_s3, local_voice_path)
         from tortoise.utils.audio import load_voice
 
         voice_samples, conditioning_latents = load_voice(voice)
